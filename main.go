@@ -8,6 +8,23 @@ import (
 	"github.com/fhs/gompd/v2/mpd"
 )
 
+func withCORS(h http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+        // Handle preflight
+        if r.Method == http.MethodOptions {
+            w.WriteHeader(http.StatusNoContent)
+
+            return
+        }
+
+        h.ServeHTTP(w, r)
+    })
+}
+
 func main() {
     conn, err := mpd.Dial("tcp", "localhost:6600")
     if err != nil {
@@ -15,7 +32,9 @@ func main() {
     }
     defer conn.Close()
 
-    http.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
+    mux := http.NewServeMux()
+
+    mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
         conn.Clear()
         conn.Add("wn.mp3")
         conn.Play(-1)
@@ -23,16 +42,16 @@ func main() {
         fmt.Fprintln(w, "Playing noise-white.mp3")
     })
 
-    http.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
+    mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
         conn.Pause(true)
         fmt.Fprintln(w, "Paused")
     })
 
-    http.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
+    mux.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
         conn.SetVolume(50)
         fmt.Fprintln(w, "Volume set to 50")
     })
 
     log.Println("API on :3000")
-    http.ListenAndServe(":3000", nil)
+    http.ListenAndServe(":3000", withCORS(mux))
 }
