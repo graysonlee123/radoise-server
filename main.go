@@ -32,14 +32,15 @@ func main() {
     }
     defer conn.Close()
 
+    file := "wn.mp3"
     mux := http.NewServeMux()
 
     mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
         conn.Clear()
-        conn.Add("wn.mp3")
+        conn.Add(file)
         conn.Play(-1)
 
-        fmt.Fprintln(w, "Playing noise-white.mp3")
+        fmt.Fprintln(w, "Playing " + file)
     })
 
     mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
