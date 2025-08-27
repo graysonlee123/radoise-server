@@ -37,7 +37,7 @@ func main() {
     mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
         conn, err := getMPDConnection()
         if err != nil {
-            w.WriteHeader(500)
+            w.WriteHeader(http.StatusInternalServerError)
             fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
 
             return
@@ -46,7 +46,7 @@ func main() {
 
         err = conn.Clear()
         if err != nil {
-            w.WriteHeader(500)
+            w.WriteHeader(http.StatusInternalServerError)
             fmt.Fprintln(w, "Error clearing MPD playlist:", err.Error())
 
             return
@@ -54,7 +54,7 @@ func main() {
 
         err = conn.Add(file)
         if err != nil {
-            w.WriteHeader(500)
+            w.WriteHeader(http.StatusInternalServerError)
             fmt.Fprintln(w, "Error adding file to MPD playlist:", err.Error())
 
             return
@@ -63,7 +63,7 @@ func main() {
         err = conn.Play(-1)
         if err != nil {
             fmt.Fprintln(w, "Error playing MPD playlist:", err.Error())
-            w.WriteHeader(500)
+            w.WriteHeader(http.StatusInternalServerError)
 
             return
         }
@@ -74,7 +74,7 @@ func main() {
     mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
         conn, err := getMPDConnection()
         if err != nil {
-            w.WriteHeader(500)
+            w.WriteHeader(http.StatusInternalServerError)
             fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
 
             return
@@ -83,7 +83,7 @@ func main() {
 
         err = conn.Pause(true)
         if err != nil {
-            w.WriteHeader(500)
+            w.WriteHeader(http.StatusInternalServerError)
             fmt.Fprintln(w, "Error pausing MPD playback:", err.Error())
 
             return
@@ -95,7 +95,7 @@ func main() {
     mux.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
         conn, err := getMPDConnection()
         if err != nil {
-            w.WriteHeader(500)
+            w.WriteHeader(http.StatusInternalServerError)
             fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
 
             return
