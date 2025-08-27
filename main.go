@@ -25,18 +25,26 @@ func withCORS(h http.Handler) http.Handler {
     })
 }
 
-func main() {
-    conn, err := mpd.Dial("tcp", "localhost:6600")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer conn.Close()
+// Helper function to get a fresh MPD connection
+func getMPDConnection() (*mpd.Client, error) {
+    return mpd.Dial("tcp", "localhost:6600")
+}
 
+func main() {
     file := "wn.mp3"
     mux := http.NewServeMux()
 
     mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
-        err := conn.Clear()
+        conn, err := getMPDConnection()
+        if err != nil {
+            w.WriteHeader(500)
+            fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
+
+            return
+        }
+        defer conn.Close()
+
+        err = conn.Clear()
         if err != nil {
             w.WriteHeader(500)
             fmt.Fprintln(w, "Error clearing MPD playlist:", err.Error())
@@ -64,7 +72,16 @@ func main() {
     })
 
     mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
-        err := conn.Pause(true)
+        conn, err := getMPDConnection()
+        if err != nil {
+            w.WriteHeader(500)
+            fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
+
+            return
+        }
+        defer conn.Close()
+
+        err = conn.Pause(true)
         if err != nil {
             w.WriteHeader(500)
             fmt.Fprintln(w, "Error pausing MPD playback:", err.Error())
@@ -76,6 +93,15 @@ func main() {
     })
 
     mux.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
+        conn, err := getMPDConnection()
+        if err != nil {
+            w.WriteHeader(500)
+            fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
+
+            return
+        }
+        defer conn.Close()
+
         conn.SetVolume(50)
         fmt.Fprintln(w, "Volume set to 50")
     })
