@@ -38,16 +38,16 @@ func main() {
     mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
         err := conn.Clear()
         if err != nil {
-            fmt.Fprintln(w, "Error clearing MPD playlist:", err.Error())
             w.WriteHeader(500)
+            fmt.Fprintln(w, "Error clearing MPD playlist:", err.Error())
 
             return
         }
 
         err = conn.Add(file)
         if err != nil {
-            fmt.Fprintln(w, "Error adding file to MPD playlist:", err.Error())
             w.WriteHeader(500)
+            fmt.Fprintln(w, "Error adding file to MPD playlist:", err.Error())
 
             return
         }
@@ -66,8 +66,8 @@ func main() {
     mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
         err := conn.Pause(true)
         if err != nil {
-            fmt.Fprintln(w, "Error pausing MPD playback:", err.Error())
             w.WriteHeader(500)
+            fmt.Fprintln(w, "Error pausing MPD playback:", err.Error())
 
             return
         }
