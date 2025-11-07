@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/fhs/gompd/v2/mpd"
 )
@@ -102,8 +103,36 @@ func main() {
         }
         defer conn.Close()
 
-        conn.SetVolume(50)
-        fmt.Fprintln(w, "Volume set to 50")
+        volumeStr := r.URL.Query().Get("level")
+        if volumeStr == "" {
+            w.WriteHeader(http.StatusBadRequest)
+            fmt.Fprintln(w, "Missing 'level' query parameter")
+            return
+        }
+
+        volume, err := strconv.Atoi(volumeStr)
+        if err != nil {
+            w.WriteHeader(http.StatusBadRequest)
+            fmt.Fprintln(w, "Invalid volume level: must be an integer")
+            return
+        }
+
+        minVolume := 0
+        maxVolume := 100
+        if volume < minVolume || volume > maxVolume {
+            w.WriteHeader(http.StatusBadRequest)
+            fmt.Fprintln(w, "Invalid volume level: out of bounds")
+            return
+        }
+
+        err = conn.SetVolume(volume)
+        if err != nil {
+            w.WriteHeader(http.StatusInternalServerError)
+            fmt.Fprintln(w, "Error setting MPD volume:", err.Error())
+            return
+        }
+
+        fmt.Fprintf(w, "Volume set to %d", volume)
     })
 
     log.Println("API on :3000")
