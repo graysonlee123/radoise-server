@@ -141,6 +141,10 @@ docker run -p 3000:3000 --network host radoise-server
 
 Note: The `--network host` flag is needed for the container to access MPD on localhost.
 
+## Changes
+
+See the [commit history](https://github.com/graysonlee123/radoise-server/commits/main) for recent changes and updates.
+
 ## Dependencies
 
 - `github.com/fhs/gompd/v2` - MPD client library for Go
