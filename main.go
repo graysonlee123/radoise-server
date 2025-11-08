@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -31,6 +32,38 @@ func getMPDConnection() (*mpd.Client, error) {
 	return mpd.Dial("tcp", "localhost:6600")
 }
 
+type SuccessResponse struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+}
+
+func okResponse(w http.ResponseWriter, message string) {
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	encoder := json.NewEncoder(w)
+	encoder.Encode(SuccessResponse{
+		OK:      true,
+		Message: message,
+	})
+}
+
+type ErrorResponse struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+}
+
+func errorResponse(w http.ResponseWriter, message string, code int) {
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(code)
+
+	encoder := json.NewEncoder(w)
+	encoder.Encode(ErrorResponse{
+		OK:      false,
+		Message: message,
+	})
+}
+
 func main() {
 	file := "wn.mp3"
 	mux := http.NewServeMux()
@@ -38,55 +71,43 @@ func main() {
 	mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := getMPDConnection()
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
-
+			errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer conn.Close()
 
 		err = conn.Clear()
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "Error clearing MPD playlist:", err.Error())
-
+			errorResponse(w, "Error clearing MPD playlist: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		err = conn.Add(file)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "Error adding file to MPD playlist:", err.Error())
-
+			errorResponse(w, "Error adding file to MPD playlist: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		err = conn.Play(-1)
 		if err != nil {
-			fmt.Fprintln(w, "Error playing MPD playlist:", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-
+			errorResponse(w, "Error playing MPD playlist: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		fmt.Fprintln(w, "Playing "+file)
+		okResponse(w, "Playing "+file)
 	})
 
 	mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := getMPDConnection()
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
-
+			errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer conn.Close()
 
 		err = conn.Pause(true)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "Error pausing MPD playback:", err.Error())
-
+			errorResponse(w, "Error pausing MPD playback: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -96,43 +117,37 @@ func main() {
 	mux.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := getMPDConnection()
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
-
+			errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer conn.Close()
 
 		volumeStr := r.URL.Query().Get("level")
 		if volumeStr == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintln(w, "Missing 'level' query parameter")
+			errorResponse(w, "Missing 'level' query parameter.", http.StatusBadRequest)
 			return
 		}
 
 		volume, err := strconv.Atoi(volumeStr)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintln(w, "Invalid volume level: must be an integer")
+			errorResponse(w, "Invalid volume level: must be an integer.", http.StatusBadRequest)
 			return
 		}
 
 		minVolume := 0
 		maxVolume := 100
 		if volume < minVolume || volume > maxVolume {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintln(w, "Invalid volume level: out of bounds")
+			errorResponse(w, "Invalid volume level: out of bounds", http.StatusBadRequest)
 			return
 		}
 
 		err = conn.SetVolume(volume)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "Error setting MPD volume:", err.Error())
+			errorResponse(w, "Error setting MPD volume: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		fmt.Fprintf(w, "Volume set to %d", volume)
+		okResponse(w, "Volume set to "+volumeStr)
 	})
 
 	log.Println("API on :3000")
