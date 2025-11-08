@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/fhs/gompd/v2/mpd"
@@ -32,7 +34,6 @@ func getMPDConnection() (*mpd.Client, error) {
 }
 
 func main() {
-    file := "wn.mp3"
     mux := http.NewServeMux()
 
     mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +45,28 @@ func main() {
             return
         }
         defer conn.Close()
+
+        file := r.URL.Query().Get("file")
+        if file == "" {
+            w.WriteHeader(http.StatusBadRequest)
+            fmt.Fprintln(w, "Missing 'file' query parameter")
+            return
+        }
+
+        files, err := conn.GetFiles()
+        if err != nil {
+            w.WriteHeader(http.StatusInternalServerError)
+            fmt.Fprintln(w, "Error reading MPD database:", err.Error())
+
+            return
+        }
+
+        if !slices.Contains(files, file) {
+            w.WriteHeader(http.StatusInternalServerError)
+            fmt.Fprintln(w, "That file was not found in the MPD database.")
+
+            return
+        }
 
         err = conn.Clear()
         if err != nil {
@@ -91,6 +114,43 @@ func main() {
         }
 
         fmt.Fprintln(w, "Paused")
+    })
+
+    mux.HandleFunc("/database", func(w http.ResponseWriter, r *http.Request) {
+        conn, err := getMPDConnection()
+        if err != nil {
+            w.WriteHeader(http.StatusInternalServerError)
+            fmt.Fprintln(w, "Error connecting to MPD:", err.Error())
+
+            return
+        }
+        defer conn.Close()
+
+        files, err := conn.GetFiles()
+        if err != nil {
+            w.WriteHeader(http.StatusInternalServerError)
+            fmt.Fprintln(w, "Error reading MPD database:", err.Error())
+
+            return
+        }
+
+        if (len(files) == 0) {
+            w.WriteHeader(http.StatusInternalServerError)
+            fmt.Fprintln(w, "No files were found in the MPD database.")
+
+            return
+        }
+
+        encoder := json.NewEncoder(w)
+        err = encoder.Encode(files)
+        if err != nil {
+            w.WriteHeader(http.StatusInternalServerError)
+            fmt.Fprintln(w, "Could not encode a JSON response.")
+
+            return
+        }
+
+        fmt.Fprintln(w)
     })
 
     mux.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
