@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/fhs/gompd/v2/mpd"
@@ -35,17 +35,27 @@ func getMPDConnection() (*mpd.Client, error) {
 type SuccessResponse struct {
 	OK      bool   `json:"ok"`
 	Message string `json:"message"`
+	Data    any    `json:"data"`
 }
 
-func okResponse(w http.ResponseWriter, message string) {
+func okResponse(w http.ResponseWriter, message string, data any) {
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	encoder := json.NewEncoder(w)
-	encoder.Encode(SuccessResponse{
-		OK:      true,
-		Message: message,
-	})
+
+	if data != nil {
+		encoder.Encode(SuccessResponse{
+			OK:      true,
+			Message: message,
+			Data:    data,
+		})
+	} else {
+		encoder.Encode(SuccessResponse{
+			OK:      true,
+			Message: message,
+		})
+	}
 }
 
 type ErrorResponse struct {
@@ -65,7 +75,6 @@ func errorResponse(w http.ResponseWriter, message string, code int) {
 }
 
 func main() {
-	file := "wn.mp3"
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +84,23 @@ func main() {
 			return
 		}
 		defer conn.Close()
+
+		file := r.URL.Query().Get("file")
+		if file == "" {
+			errorResponse(w, "Missing 'file' query parameter.", http.StatusBadRequest)
+			return
+		}
+
+		files, err := conn.GetFiles()
+		if err != nil {
+			errorResponse(w, "Error reading MPD database: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if !slices.Contains(files, file) {
+			errorResponse(w, "That file was not found in the MPD database.", http.StatusInternalServerError)
+			return
+		}
 
 		err = conn.Clear()
 		if err != nil {
@@ -94,7 +120,7 @@ func main() {
 			return
 		}
 
-		okResponse(w, "Playing "+file)
+		okResponse(w, "Playing "+file, nil)
 	})
 
 	mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +137,7 @@ func main() {
 			return
 		}
 
-		fmt.Fprintln(w, "Paused")
+		okResponse(w, "Paused.", nil)
 	})
 
 	mux.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +173,29 @@ func main() {
 			return
 		}
 
-		okResponse(w, "Volume set to "+volumeStr)
+		okResponse(w, "Volume set to "+volumeStr, nil)
+	})
+
+	mux.HandleFunc("/database", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := getMPDConnection()
+		if err != nil {
+			errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer conn.Close()
+
+		files, err := conn.GetFiles()
+		if err != nil {
+			errorResponse(w, "Error reading MPD database: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if len(files) == 0 {
+			errorResponse(w, "No files were found in the MPD database.", http.StatusInternalServerError)
+			return
+		}
+
+		okResponse(w, "Found database files.", files)
 	})
 
 	log.Println("API on :3000")
