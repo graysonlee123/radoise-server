@@ -91,7 +91,8 @@ func main() {
 		}
 		defer conn.Close()
 
-		if r.Method == "GET" {
+		switch r.Method {
+		case "GET":
 			atts, err := conn.CurrentSong()
 			if err != nil {
 				errorResponse(w, "Error getting current song from MPD: "+err.Error(), http.StatusInternalServerError)
@@ -108,120 +109,136 @@ func main() {
 				LastModified: atts["Last-Modified"],
 				Id:           atts["Id"],
 			})
-			return
-		}
+		case "POST":
+			file := r.URL.Query().Get("file")
+			if file == "" {
+				errorResponse(w, "Missing 'file' query parameter.", http.StatusBadRequest)
+				return
+			}
 
-		file := r.URL.Query().Get("file")
-		if file == "" {
-			errorResponse(w, "Missing 'file' query parameter.", http.StatusBadRequest)
-			return
-		}
+			files, err := conn.GetFiles()
+			if err != nil {
+				errorResponse(w, "Error reading MPD database: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		files, err := conn.GetFiles()
-		if err != nil {
-			errorResponse(w, "Error reading MPD database: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+			if !slices.Contains(files, file) {
+				errorResponse(w, "That file was not found in the MPD database.", http.StatusInternalServerError)
+				return
+			}
 
-		if !slices.Contains(files, file) {
-			errorResponse(w, "That file was not found in the MPD database.", http.StatusInternalServerError)
-			return
-		}
+			err = conn.Clear()
+			if err != nil {
+				errorResponse(w, "Error clearing MPD playlist: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		err = conn.Clear()
-		if err != nil {
-			errorResponse(w, "Error clearing MPD playlist: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+			err = conn.Add(file)
+			if err != nil {
+				errorResponse(w, "Error adding file to MPD playlist: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		err = conn.Add(file)
-		if err != nil {
-			errorResponse(w, "Error adding file to MPD playlist: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+			err = conn.Play(-1)
+			if err != nil {
+				errorResponse(w, "Error playing MPD playlist: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		err = conn.Play(-1)
-		if err != nil {
-			errorResponse(w, "Error playing MPD playlist: "+err.Error(), http.StatusInternalServerError)
-			return
+			okResponse(w, "Playing "+file, nil)
+		default:
+			errorResponse(w, "Method not allowed.", http.StatusMethodNotAllowed)
 		}
-
-		okResponse(w, "Playing "+file, nil)
 	})
 
 	mux.HandleFunc("/pause", func(w http.ResponseWriter, r *http.Request) {
-		conn, err := getMPDConnection()
-		if err != nil {
-			errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer conn.Close()
+		switch r.Method {
+		case "POST":
+			conn, err := getMPDConnection()
+			if err != nil {
+				errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer conn.Close()
 
-		err = conn.Pause(true)
-		if err != nil {
-			errorResponse(w, "Error pausing MPD playback: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+			err = conn.Pause(true)
+			if err != nil {
+				errorResponse(w, "Error pausing MPD playback: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		okResponse(w, "Paused.", nil)
+			okResponse(w, "Paused.", nil)
+		default:
+			errorResponse(w, "Method not allowed.", http.StatusMethodNotAllowed)
+		}
 	})
 
 	mux.HandleFunc("/volume", func(w http.ResponseWriter, r *http.Request) {
-		conn, err := getMPDConnection()
-		if err != nil {
-			errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer conn.Close()
+		switch r.Method {
+		case "POST":
+			conn, err := getMPDConnection()
+			if err != nil {
+				errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer conn.Close()
 
-		volumeStr := r.URL.Query().Get("level")
-		if volumeStr == "" {
-			errorResponse(w, "Missing 'level' query parameter.", http.StatusBadRequest)
-			return
-		}
+			volumeStr := r.URL.Query().Get("level")
+			if volumeStr == "" {
+				errorResponse(w, "Missing 'level' query parameter.", http.StatusBadRequest)
+				return
+			}
 
-		volume, err := strconv.Atoi(volumeStr)
-		if err != nil {
-			errorResponse(w, "Invalid volume level: must be an integer.", http.StatusBadRequest)
-			return
-		}
+			volume, err := strconv.Atoi(volumeStr)
+			if err != nil {
+				errorResponse(w, "Invalid volume level: must be an integer.", http.StatusBadRequest)
+				return
+			}
 
-		minVolume := 0
-		maxVolume := 100
-		if volume < minVolume || volume > maxVolume {
-			errorResponse(w, "Invalid volume level: out of bounds", http.StatusBadRequest)
-			return
-		}
+			minVolume := 0
+			maxVolume := 100
+			if volume < minVolume || volume > maxVolume {
+				errorResponse(w, "Invalid volume level: out of bounds", http.StatusBadRequest)
+				return
+			}
 
-		err = conn.SetVolume(volume)
-		if err != nil {
-			errorResponse(w, "Error setting MPD volume: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+			err = conn.SetVolume(volume)
+			if err != nil {
+				errorResponse(w, "Error setting MPD volume: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		okResponse(w, "Volume set to "+volumeStr, nil)
+			okResponse(w, "Volume set to "+volumeStr, nil)
+		default:
+			errorResponse(w, "Method not allowed.", http.StatusMethodNotAllowed)
+		}
 	})
 
 	mux.HandleFunc("/database", func(w http.ResponseWriter, r *http.Request) {
-		conn, err := getMPDConnection()
-		if err != nil {
-			errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer conn.Close()
+		switch r.Method {
+		case "GET":
+			conn, err := getMPDConnection()
+			if err != nil {
+				errorResponse(w, "Error connecting to MPD: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer conn.Close()
 
-		files, err := conn.GetFiles()
-		if err != nil {
-			errorResponse(w, "Error reading MPD database: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+			files, err := conn.GetFiles()
+			if err != nil {
+				errorResponse(w, "Error reading MPD database: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		if len(files) == 0 {
-			errorResponse(w, "No files were found in the MPD database.", http.StatusInternalServerError)
-			return
-		}
+			if len(files) == 0 {
+				errorResponse(w, "No files were found in the MPD database.", http.StatusInternalServerError)
+				return
+			}
 
-		okResponse(w, "Found database files.", files)
+			okResponse(w, "Found database files.", files)
+		default:
+			errorResponse(w, "Method not allowed.", http.StatusMethodNotAllowed)
+		}
 	})
 
 	log.Println("API on :3000")
