@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"slices"
 	"strconv"
 
 	"github.com/fhs/gompd/v2/mpd"
@@ -113,17 +112,6 @@ func main() {
 			file := r.URL.Query().Get("file")
 			if file == "" {
 				errorResponse(w, "Missing 'file' query parameter.", http.StatusBadRequest)
-				return
-			}
-
-			files, err := conn.GetFiles()
-			if err != nil {
-				errorResponse(w, "Error reading MPD database: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			if !slices.Contains(files, file) {
-				errorResponse(w, "That file was not found in the MPD database.", http.StatusInternalServerError)
 				return
 			}
 
