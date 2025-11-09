@@ -74,6 +74,12 @@ func errorResponse(w http.ResponseWriter, message string, code int) {
 	})
 }
 
+type SongAtts struct {
+	Id           string `json:"id"`
+	File         string `json:"file"`
+	LastModified string `json:"lastModified"`
+}
+
 func main() {
 	mux := http.NewServeMux()
 
@@ -84,6 +90,26 @@ func main() {
 			return
 		}
 		defer conn.Close()
+
+		if r.Method == "GET" {
+			atts, err := conn.CurrentSong()
+			if err != nil {
+				errorResponse(w, "Error getting current song from MPD: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			if len(atts) == 0 {
+				errorResponse(w, "Attributes for current song are empty.", http.StatusInternalServerError)
+				return
+			}
+
+			okResponse(w, "Got attributes for current song.", SongAtts{
+				File:         atts["file"],
+				LastModified: atts["Last-Modified"],
+				Id:           atts["Id"],
+			})
+			return
+		}
 
 		file := r.URL.Query().Get("file")
 		if file == "" {
