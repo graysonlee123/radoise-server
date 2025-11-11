@@ -77,6 +77,7 @@ type SongAtts struct {
 	Id           string `json:"id"`
 	File         string `json:"file"`
 	LastModified string `json:"lastModified"`
+	Title        string `json:"title"`
 }
 
 func main() {
@@ -107,6 +108,7 @@ func main() {
 				File:         atts["file"],
 				LastModified: atts["Last-Modified"],
 				Id:           atts["Id"],
+				Title:        atts["Title"],
 			})
 		case "POST":
 			file := r.URL.Query().Get("file")
