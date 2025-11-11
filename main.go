@@ -110,11 +110,20 @@ func main() {
 			})
 		case "POST":
 			file := r.URL.Query().Get("file")
+
+			// If user didn't pass a file, just play
 			if file == "" {
-				errorResponse(w, "Missing 'file' query parameter.", http.StatusBadRequest)
+				err = conn.Play(-1)
+				if err != nil {
+					errorResponse(w, "Error playing MPD playlist: "+err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				okResponse(w, "Playing.", nil)
 				return
 			}
 
+			// If user did pass a file, clear the queue, add it, and play
 			err = conn.Clear()
 			if err != nil {
 				errorResponse(w, "Error clearing MPD playlist: "+err.Error(), http.StatusInternalServerError)
